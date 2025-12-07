@@ -2,20 +2,19 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.express as px
-import json
 import requests
 
 # -------------------------------------------------
 # PAGE CONFIG
 # -------------------------------------------------
 st.set_page_config(
-    page_title="AQI Analysis – Chemistry & Math",
+    page_title="AQI Analysis – Environmental Chemistry",
     layout="wide",
     page_icon="🌫️",
 )
 
 # -------------------------------------------------
-# LOTTIE HELPER (for animation)
+# OPTIONAL: LOTTIE ANIMATION
 # -------------------------------------------------
 def load_lottie_url(url: str):
     try:
@@ -31,13 +30,12 @@ try:
 except Exception:
     LOTTIE_AVAILABLE = False
 
-# A nice pollution-themed animation (if internet is available)
 lottie_pollution = load_lottie_url(
     "https://lottie.host/1eead027-0339-4c23-8974-7a73b094d737/z14L5RbbB8.json"
 )
 
 # -------------------------------------------------
-# CUSTOM CSS
+# CUSTOM CSS (for bars / cards / dark UI)
 # -------------------------------------------------
 st.markdown(
     """
@@ -71,6 +69,26 @@ st.markdown(
         border: 1px solid rgba(148, 163, 184, 0.4);
         box-shadow: 0 10px 30px rgba(0,0,0,0.45);
     }
+    .info-bar {
+        padding: 0.9rem 1.1rem;
+        border-radius: 0.7rem;
+        background: linear-gradient(90deg, #0f172a, #020617);
+        border-left: 4px solid #38bdf8;
+        margin-bottom: 0.7rem;
+    }
+    .info-bar-chem {
+        border-left-color: #22c55e;
+    }
+    .info-title {
+        font-weight: 600;
+        font-size: 0.95rem;
+        color: #e5e7eb;
+        margin-bottom: 0.2rem;
+    }
+    .info-body {
+        font-size: 0.86rem;
+        color: #cbd5f5;
+    }
     .pill {
         display: inline-block;
         padding: 0.25rem 0.75rem;
@@ -81,41 +99,36 @@ st.markdown(
         background: #0f172a;
         margin-right: 0.4rem;
     }
-    .good-chip {
-        display: inline-block;
-        padding: 0.2rem 0.6rem;
+    .aqi-chip-good {
+        padding: 0.15rem 0.55rem;
         border-radius: 999px;
-        background: #16a34a22;
+        font-size: 0.78rem;
         border: 1px solid #16a34a;
-        font-size: 0.8rem;
+        background: #16a34a22;
+        color: #bbf7d0;
+        margin-right: 0.25rem;
     }
-    .moderate-chip {
-        display: inline-block;
-        padding: 0.2rem 0.6rem;
+    .aqi-chip-mod {
+        padding: 0.15rem 0.55rem;
         border-radius: 999px;
-        background: #eab30822;
+        font-size: 0.78rem;
         border: 1px solid #eab308;
-        font-size: 0.8rem;
+        background: #eab30822;
+        color: #fef3c7;
+        margin-right: 0.25rem;
     }
-    .poor-chip {
-        display: inline-block;
-        padding: 0.2rem 0.6rem;
+    .aqi-chip-poor {
+        padding: 0.15rem 0.55rem;
         border-radius: 999px;
-        background: #ef444422;
+        font-size: 0.78rem;
         border: 1px solid #ef4444;
-        font-size: 0.8rem;
+        background: #ef444422;
+        color: #fecaca;
+        margin-right: 0.25rem;
     }
     .badge-chem {
         background: #22c55e22;
         border: 1px solid #22c55e;
-        padding: 0.15rem 0.55rem;
-        border-radius: 999px;
-        font-size: 0.78rem;
-        margin-right: 0.3rem;
-    }
-    .badge-math {
-        background: #38bdf822;
-        border: 1px solid #38bdf8;
         padding: 0.15rem 0.55rem;
         border-radius: 999px;
         font-size: 0.78rem;
@@ -133,68 +146,74 @@ pollutant_info = {
     "PM2_5": {
         "name": "Particulate Matter 2.5",
         "formula": "Mixture (≤ 2.5 μm)",
-        "type": "Primary & Secondary Pollutant",
+        "type": "Primary & Secondary",
         "sources": "Vehicle exhaust, biomass burning, industrial emissions, secondary formation from SO₂ & NOₓ.",
         "chemistry": (
             "PM₂.₅ often contains sulfates (from SO₂ oxidation), nitrates (from NOₓ), "
-            "organic carbon and metals. Due to very small size, it penetrates deep into lungs."
+            "organic carbon and metals. Because the particles are so small, they stay longer in air "
+            "and penetrate deep into the lungs."
         ),
-        "health": "Irritates lungs, reduces gas exchange, increases risk of asthma, bronchitis, and cardiovascular diseases."
+        "health": "Irritates lungs, reduces gas exchange, increases risk of asthma, bronchitis, and heart diseases."
     },
     "PM10": {
         "name": "Particulate Matter 10",
         "formula": "Mixture (≤ 10 μm)",
-        "type": "Primary Pollutant",
+        "type": "Primary",
         "sources": "Dust, construction activities, road resuspension, burning of fuels.",
         "chemistry": (
-            "Coarse particles with dust, soil, metals, carbonaceous material. "
-            "Less deep penetration than PM₂.₅ but still harmful."
+            "Coarser particles containing dust, soil, metal oxides and carbonaceous material. "
+            "They settle faster than PM₂.₅ but still affect the upper respiratory tract."
         ),
-        "health": "Irritation of eyes, nose, throat; respiratory problems."
+        "health": "Irritation of eyes, nose, throat; respiratory discomfort."
     },
     "NO2": {
         "name": "Nitrogen Dioxide",
         "formula": "NO₂",
-        "type": "Primary & Secondary Pollutant",
-        "sources": "High-temperature combustion in vehicles, power plants, industries.",
+        "type": "Primary & Secondary",
+        "sources": "High-temperature combustion in vehicles, power plants and industries.",
         "chemistry": (
-            "Participates in photochemical smog. Under sunlight it forms NO and atomic oxygen:\n\n"
-            "NO₂ + hν → NO + O·\nO· + O₂ → O₃\n"
+            "NO₂ is a key precursor of photochemical smog. Under sunlight:\n\n"
+            "NO₂ + hν → NO + O·\n"
+            "O· + O₂ → O₃\n\n"
+            "This leads to ground-level ozone formation."
         ),
         "health": "Irritates respiratory tract, reduces lung function, aggravates asthma."
     },
     "SO2": {
         "name": "Sulfur Dioxide",
         "formula": "SO₂",
-        "type": "Primary Pollutant",
-        "sources": "Burning coal and oil containing sulfur, smelters.",
+        "type": "Primary",
+        "sources": "Burning of coal and oil containing sulfur, metal smelters.",
         "chemistry": (
-            "Oxidizes in atmosphere to SO₃, then forms sulfuric acid:\n\n"
-            "2 SO₂ + O₂ → 2 SO₃\nSO₃ + H₂O → H₂SO₄\n\n"
-            "Major contributor to acid rain."
+            "SO₂ oxidises to SO₃ in air and then forms sulfuric acid:\n\n"
+            "2 SO₂ + O₂ → 2 SO₃\n"
+            "SO₃ + H₂O → H₂SO₄\n\n"
+            "This is a major route for acid rain."
         ),
-        "health": "Causes irritation in eyes, nose, throat; breathing difficulty; plant damage."
+        "health": "Causes coughing, throat irritation, breathing difficulty; damages plant leaves."
     },
     "O3": {
         "name": "Ozone (tropospheric)",
         "formula": "O₃",
-        "type": "Secondary Pollutant",
-        "sources": "Formed from NOₓ and VOCs under sunlight.",
+        "type": "Secondary",
+        "sources": "Formed in atmosphere from NOₓ and VOCs in presence of sunlight.",
         "chemistry": (
-            "Key component of photochemical smog. Formed by reactions involving NO₂, O₂ and sunlight, "
-            "and further reactions with VOCs."
+            "O₃ is a strong oxidizing agent and a key component of photochemical smog. "
+            "It is not emitted directly; it is formed by a series of reactions involving NO₂, O₂, "
+            "and volatile organic compounds (VOCs)."
         ),
-        "health": "Strong oxidizing agent; damages lung tissue, causes chest pain & coughing."
+        "health": "Damages lung tissue, causes chest pain, coughing, and breathing problems."
     },
     "CO": {
         "name": "Carbon Monoxide",
         "formula": "CO",
-        "type": "Primary Pollutant",
-        "sources": "Incomplete combustion of carbon-based fuels (vehicles, stoves, generators).",
+        "type": "Primary",
+        "sources": "Incomplete combustion of petrol, diesel, LPG, wood, etc.",
         "chemistry": (
-            "Binds strongly with hemoglobin to form carboxyhemoglobin (HbCO), reducing oxygen transport in blood."
+            "CO binds strongly with hemoglobin to form carboxyhemoglobin (HbCO), "
+            "reducing the oxygen-carrying capacity of blood."
         ),
-        "health": "Reduces oxygen supply, causes headache, dizziness; high levels can be fatal."
+        "health": "Headache, dizziness, unconsciousness; in high concentration it can be fatal."
     },
 }
 
@@ -203,16 +222,15 @@ pollutant_info = {
 # -------------------------------------------------
 st.sidebar.title("⚙️ Controls")
 
-st.sidebar.write("Upload your own AQI CSV or use the default project dataset.")
+st.sidebar.write("Upload your own AQI CSV or use the project dataset:")
 
 uploaded_file = st.sidebar.file_uploader(
-    "Upload AQI CSV file (optional)",
+    "Upload AQI CSV (optional)",
     type=["csv"],
-    help="If you don't upload, the app will try to use 'aqi_data_180_days.csv' from the project folder.",
+    help="If you don't upload, the app tries to use 'aqi_data_180_days.csv' from the same folder.",
 )
 
 df = None
-
 if uploaded_file is not None:
     df = pd.read_csv(uploaded_file)
 else:
@@ -225,33 +243,33 @@ if df is not None and "date" in df.columns:
     df["date"] = pd.to_datetime(df["date"], errors="coerce")
 
 # -------------------------------------------------
-# HERO SECTION
+# HERO SECTION (like maths project vibe)
 # -------------------------------------------------
 col_hero_text, col_hero_anim = st.columns([1.4, 1])
 
 with col_hero_text:
     st.markdown('<div class="hero">', unsafe_allow_html=True)
     st.markdown("### 1st Year Engineering – Chemistry Project")
-    st.markdown("## 🌫️ AQI Analysis Dashboard – **Chemistry + Math + Python**")
+    st.markdown("## 🌫️ AQI Analysis Dashboard – Environmental Chemistry Focus")
 
     st.markdown(
         """
-        <span class="pill">Environmental Chemistry</span>
+        <span class="pill">Air Pollution Chemistry</span>
         <span class="pill">Atmospheric Reactions</span>
-        <span class="pill">Integration & Matrices</span>
+        <span class="pill">Health & Environment</span>
         """,
         unsafe_allow_html=True,
     )
 
     st.markdown(
         """
-        This interactive dashboard connects:
+        This dashboard connects **realistic AQI data** with **chemical concepts** such as:
+        - combustion of fuels  
+        - formation of photochemical smog  
+        - acid rain and particle formation  
+        - health effects of different pollutants  
 
-        - **Chemistry:** Combustion, oxidation, acid rain, photochemical smog  
-        - **Maths:** Integration, differentiation, matrices, eigenvalues  
-        - **Programming:** Python, Pandas, NumPy, Plotly, Streamlit  
-
-        using real-like **AQI data** for Indian cities.
+        Built using **Python + Streamlit**, presented as a **Chemistry mini project**.
         """
     )
     st.markdown("</div>", unsafe_allow_html=True)
@@ -260,351 +278,350 @@ with col_hero_anim:
     if LOTTIE_AVAILABLE and lottie_pollution is not None:
         st_lottie(lottie_pollution, height=260)
     else:
-        st.markdown("*(Animation placeholder – install `streamlit-lottie` for Lottie support.)*")
+        st.markdown(
+            """
+            <div class="metric-card">
+            <b>Animation</b><br>
+            Install <code>streamlit-lottie</code> to see a pollution animation here,
+            or keep it like this for a simpler setup.
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
 st.markdown("---")
 
 # -------------------------------------------------
 # TABS
 # -------------------------------------------------
-tab_dash, tab_chem, tab_trends, tab_math, tab_data = st.tabs(
+tab_overview, tab_chem, tab_city, tab_health, tab_data = st.tabs(
     [
-        "📊 Dashboard",
+        "📊 Overview Dashboard",
         "🧪 Chemistry of Pollutants",
-        "📈 Time Trends",
-        "📐 Math & Modeling",
+        "🏙️ City Air Profiles",
+        "❤️ Health & AQI Categories",
         "📂 Data Explorer",
     ]
 )
 
 # -------------------------------------------------
-# TAB: DASHBOARD
+# TAB 1: OVERVIEW
 # -------------------------------------------------
-with tab_dash:
-    st.subheader("Overall Air Quality Snapshot")
+with tab_overview:
+    st.subheader("Overall AQI Snapshot")
 
     if df is None:
-        st.warning("No data found. Upload a CSV or keep 'aqi_data_180_days.csv' in the project folder.")
+        st.warning("No data found. Upload a CSV or keep 'aqi_data_180_days.csv' with app.py.")
     else:
-        if "city" not in df.columns or "AQI" not in df.columns:
-            st.error("Dataset must contain at least 'city', 'date' and 'AQI' columns.")
+        required_cols = {"city", "AQI"}
+        if not required_cols.issubset(df.columns):
+            st.error("Dataset must contain at least 'city' and 'AQI' columns.")
         else:
-            # Summary per city
-            city_group = df.groupby("city")["AQI"]
+            cities = sorted(df["city"].unique())
 
-            col1, col2, col3, col4 = st.columns(4)
-            city_names = sorted(df["city"].unique())
+            # Top metrics – overall statistics
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                st.markdown('<div class="metric-card">', unsafe_allow_html=True)
+                st.markdown("**Overall Average AQI**")
+                st.markdown(f"<h2>{df['AQI'].mean():.1f}</h2>", unsafe_allow_html=True)
+                st.markdown("</div>", unsafe_allow_html=True)
 
-            metric_cols = [col1, col2, col3, col4]
-            for col, city in zip(metric_cols, city_names):
-                with col:
-                    city_df = df[df["city"] == city]
-                    avg_aqi = city_df["AQI"].mean()
-                    max_aqi = city_df["AQI"].max()
-                    min_aqi = city_df["AQI"].min()
-                    st.markdown('<div class="metric-card">', unsafe_allow_html=True)
-                    st.markdown(f"**{city}**")
-                    st.metric("Avg AQI", f"{avg_aqi:.1f}")
-                    st.caption(f"Max: {max_aqi:.0f}  •  Min: {min_aqi:.0f}")
-                    st.markdown("</div>", unsafe_allow_html=True)
+            with col2:
+                st.markdown('<div class="metric-card">', unsafe_allow_html=True)
+                st.markdown("**Worst Recorded AQI**")
+                st.markdown(f"<h2>{df['AQI'].max():.0f}</h2>", unsafe_allow_html=True)
+                st.markdown("</div>", unsafe_allow_html=True)
 
-            st.markdown("### AQI Category Bar (Chemistry Interpretation)")
+            with col3:
+                st.markdown('<div class="metric-card">', unsafe_allow_html=True)
+                st.markdown("**Number of Cities**")
+                st.markdown(f"<h2>{len(cities)}</h2>", unsafe_allow_html=True)
+                st.markdown("</div>", unsafe_allow_html=True)
 
-            fig_box = px.box(
+            st.markdown("")
+
+            # City-wise distribution
+            col_a, col_b = st.columns([1.4, 1])
+
+            with col_a:
+                fig_box = px.box(
+                    df,
+                    x="city",
+                    y="AQI",
+                    title="AQI range in each city",
+                )
+                fig_box.update_layout(template="plotly_dark", height=420)
+                st.plotly_chart(fig_box, use_container_width=True)
+
+            with col_b:
+                st.markdown('<div class="info-bar info-bar-chem">', unsafe_allow_html=True)
+                st.markdown('<div class="info-title">How to explain this in Chemistry viva?</div>', unsafe_allow_html=True)
+                st.markdown(
+                    """
+                    <div class="info-body">
+                    • A higher median AQI in a city suggests **more frequent build-up of pollutants**
+                    like PM₂.₅, PM₁₀, NO₂, and SO₂.<br><br>
+                    • This is usually due to **vehicle emissions, industrial combustion and biomass burning**.<br><br>
+                    • A wider spread (tall box) indicates days with **very poor episodes**, often when
+                    meteorological conditions trap pollutants near the surface (temperature inversion).
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+                st.markdown('</div>', unsafe_allow_html=True)
+
+            st.markdown("### AQI Distribution – All Cities Combined")
+            fig_hist = px.histogram(
                 df,
-                x="city",
-                y="AQI",
-                title="AQI range per city",
+                x="AQI",
+                nbins=30,
             )
-            fig_box.update_layout(template="plotly_dark", height=420)
-            st.plotly_chart(fig_box, use_container_width=True)
+            fig_hist.update_layout(template="plotly_dark", height=380)
+            st.plotly_chart(fig_hist, use_container_width=True)
 
             st.markdown(
                 """
-                **Chemistry view:**  
-                - Higher **median AQI** indicates more intense and frequent pollutant build-up – usually from **vehicle exhaust, industries, and biomass burning**.  
-                - Wider spread (big box & whiskers) means AQI is **highly variable**, often due to changing **meteorological conditions** (wind, inversion) and **emission peaks**.
-                """
+                <div class="info-bar info-bar-chem">
+                <div class="info-title">Chemistry view:</div>
+                <div class="info-body">
+                Every bar in this histogram represents how often certain **pollution levels**
+                occur. High AQI values mean **high concentration of chemically active pollutants**
+                in the air – more **oxidation, acid formation and smog** potential.
+                </div>
+                </div>
+                """,
+                unsafe_allow_html=True,
             )
 
 # -------------------------------------------------
-# TAB: CHEMISTRY
+# TAB 2: CHEMISTRY OF POLLUTANTS
 # -------------------------------------------------
 with tab_chem:
     st.subheader("Chemical Nature, Reactions & Health Effects")
 
     st.markdown(
         """
-        This section highlights the **chemical identity** of each pollutant,  
-        along with **reactions in the atmosphere** and **health impacts**.
-        """
-    )
-
-    st.markdown(
-        """
+        <span class="badge-chem">Combustion of fuels</span>
         <span class="badge-chem">Acid rain</span>
         <span class="badge-chem">Photochemical smog</span>
-        <span class="badge-chem">Oxidation reactions</span>
         """,
         unsafe_allow_html=True,
     )
 
     pollutant_keys = list(pollutant_info.keys())
     selected_pol = st.selectbox(
-        "Choose pollutant",
+        "Choose a pollutant to highlight",
         pollutant_keys,
         format_func=lambda x: pollutant_info[x]["name"],
     )
-
     info = pollutant_info[selected_pol]
 
-    st.markdown("-----")
-    col_left, col_right = st.columns([1.2, 1])
+    col_left, col_right = st.columns([1.1, 1])
 
     with col_left:
-        st.markdown("### Identity & Sources")
-        st.markdown(f"**Name:** {info['name']}")
-        st.markdown(f"**Formula:** `{info['formula']}`")
+        st.markdown('<div class="metric-card">', unsafe_allow_html=True)
+        st.markdown(f"### {info['name']}  (`{info['formula']}`)")
         st.markdown(f"**Type:** {info['type']}")
-        st.markdown(f"**Major Sources:** {info['sources']}")
-
-        st.markdown("### Health Effects")
+        st.markdown(f"**Typical sources:** {info['sources']}")
+        st.markdown("**Health effects (chemistry link):**")
         st.markdown(info["health"])
+        st.markdown("</div>", unsafe_allow_html=True)
 
     with col_right:
-        st.markdown("### Atmospheric Chemistry")
+        st.markdown('<div class="metric-card">', unsafe_allow_html=True)
+        st.markmarkdown("**Important atmospheric reactions:**")
         st.code(info["chemistry"])
-
-        st.markdown("### Chemistry Link to AQI")
         st.markdown(
             """
-            - Higher concentration of this pollutant increases the **AQI sub-index** for that pollutant.  
-            - The final AQI is usually determined by the **worst (highest) sub-index**, so a spike in one pollutant can
-              dominate the overall AQI.
-            """
+            AQI for this pollutant increases when its **ambient concentration** goes up.  
+            Because it participates in **oxidation and acid-forming reactions**, even moderate
+            levels can have serious environmental effects.
+            """,
+            unsafe_allow_html=False,
         )
+        st.markdown("</div>", unsafe_allow_html=True)
 
     st.markdown("---")
-    st.markdown("#### Example: Photochemical Smog Formation (NO₂ & O₃)")
 
-    st.latex(r"\text{NO}_2 + h\nu \rightarrow \text{NO} + O\cdot")
-    st.latex(r"O\cdot + O_2 \rightarrow O_3")
-    st.latex(r"O_3 + \text{VOCs} \rightarrow \text{Oxidants (smog components)}")
+    if df is not None and selected_pol in df.columns:
+        st.markdown(f"### Dataset view: {info['name']} levels across all cities")
+        fig_pol = px.box(
+            df,
+            x="city",
+            y=selected_pol,
+            title=f"{selected_pol} concentration by city",
+        )
+        fig_pol.update_layout(template="plotly_dark", height=430)
+        st.plotly_chart(fig_pol, use_container_width=True)
 
-    st.markdown(
-        """
-        In your viva you can connect **NO₂ levels** in the data to **O₃ formation** and **smog episodes** 
-        using these equations.
-        """
-    )
+        st.markdown(
+            f"""
+            <div class="info-bar info-bar-chem">
+            <div class="info-title">How to talk about this:</div>
+            <div class="info-body">
+            You can compare which city shows higher <b>{info['name']}</b> in the box plot and relate it to
+            local **sources** (traffic, industry, coastal breeze, etc.).<br><br>
+            Then you can connect it to the **chemical reactions** shown above and explain why
+            this pollutant is dangerous even if its concentration seems small.
+            </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
 # -------------------------------------------------
-# TAB: TIME TRENDS
+# TAB 3: CITY AIR PROFILES (time trend + pollutant mix)
 # -------------------------------------------------
-with tab_trends:
-    st.subheader("Time Series of AQI & Pollutants")
+with tab_city:
+    st.subheader("City-wise AQI & Pollutant Profile")
 
     if df is None:
         st.warning("No data found.")
     else:
-        if "city" not in df.columns or "date" not in df.columns:
-            st.error("Dataset must contain 'city' and 'date' columns.")
+        if not {"city", "date", "AQI"}.issubset(df.columns):
+            st.error("Dataset must contain 'city', 'date' and 'AQI' columns.")
         else:
             cities = sorted(df["city"].unique())
-            col_sel1, col_sel2 = st.columns([1, 1])
+            city_sel = st.selectbox("Select city", cities)
 
-            with col_sel1:
-                city_selected = st.selectbox("Select City", cities)
+            df_city = df[df["city"] == city_sel].copy().sort_values("date")
 
-            with col_sel2:
-                var_options = ["AQI", "PM2_5", "PM10", "NO2", "SO2", "O3", "CO"]
-                var_options = [v for v in var_options if v in df.columns]
-                var_selected = st.selectbox("Select variable", var_options)
+            col_top_l, col_top_r = st.columns([1.4, 1])
 
-            city_df = df[df["city"] == city_selected].copy()
-            city_df = city_df.sort_values("date")
+            with col_top_l:
+                st.markdown(f"### AQI over time – {city_sel}")
+                fig_ts = px.line(
+                    df_city,
+                    x="date",
+                    y="AQI",
+                    markers=True,
+                )
+                fig_ts.update_layout(template="plotly_dark", height=420)
+                st.plotly_chart(fig_ts, use_container_width=True)
 
-            st.markdown(f"### {var_selected} over time – {city_selected}")
+            with col_top_r:
+                st.markdown(
+                    """
+                    <div class="info-bar info-bar-chem">
+                    <div class="info-title">How to explain this graph:</div>
+                    <div class="info-body">
+                    • Peaks in AQI correspond to days with **high pollutant load** – for example,
+                    heavy traffic, industrial activity, or stagnant weather.<br><br>
+                    • Chemically, more pollutants mean more reactions: oxidation of SO₂ to H₂SO₄,
+                    NO₂ to O₃, and formation of secondary particles.<br><br>
+                    • You can pick one peak, mention its approximate value, and say: “On such days,
+                    the atmosphere above this city behaves like a small chemical reactor full of
+                    oxidizing species.”
+                    </div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
 
-            fig_ts_var = px.line(
-                city_df,
-                x="date",
-                y=var_selected,
-                markers=True,
-            )
-            fig_ts_var.update_layout(template="plotly_dark", height=430)
-            st.plotly_chart(fig_ts_var, use_container_width=True)
+            # Pollutant composition (average for this city)
+            pol_cols = [p for p in ["PM2_5", "PM10", "NO2", "SO2", "O3", "CO"] if p in df_city.columns]
 
-            st.markdown(
-                f"""
-                - Peaks in **{var_selected}** often correspond to **episodes of poor air quality**,  
-                  such as high traffic, festivals with firecrackers, crop burning, or stagnant air.  
-                - From a chemistry point of view, these peaks mean higher concentrations of reactive gases/particles 
-                  involved in **oxidation, acid formation and smog**.
-                """
-            )
+            if pol_cols:
+                st.markdown(f"### Average pollutant composition – {city_sel}")
+                mean_vals = df_city[pol_cols].mean().reset_index()
+                mean_vals.columns = ["Pollutant", "Mean_concentration"]
+
+                fig_bar = px.bar(
+                    mean_vals,
+                    x="Pollutant",
+                    y="Mean_concentration",
+                )
+                fig_bar.update_layout(template="plotly_dark", height=380)
+                st.plotly_chart(fig_bar, use_container_width=True)
+
+                st.markdown(
+                    """
+                    <div class="info-bar info-bar-chem">
+                    <div class="info-title">Chemical interpretation:</div>
+                    <div class="info-body">
+                    • Higher bars for PM₂.₅ / PM₁₀ → <b>particulate pollution</b> is dominant.  
+                    • Higher NO₂ / SO₂ → strong influence of <b>combustion sources</b> like vehicles and power plants.  
+                    • O₃ presence indicates <b>photochemical reactions</b> driven by sunlight.  
+                    Use this to compare cities and say which pollutants dominate each one.
+                    </div>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
 
 # -------------------------------------------------
-# TAB: MATH & MODELING
+# TAB 4: HEALTH & AQI CATEGORIES
 # -------------------------------------------------
-with tab_math:
-    st.subheader("Math & Modeling – Integration, Differentiation, Matrices")
+with tab_health:
+    st.subheader("AQI Categories, Health Effects & Days Count")
 
     st.markdown(
         """
-        This tab shows how **mathematics** is used to analyse AQI data:
-
-        <span class="badge-math">Integration (cumulative exposure)</span>
-        <span class="badge-math">Differentiation (rate of change)</span>
-        <span class="badge-math">Matrices & Eigenvalues</span>
+        <div class="info-bar info-bar-chem">
+        <div class="info-title">AQI interpretation (generic scale)</div>
+        <div class="info-body">
+        <span class="aqi-chip-good">0–50: Good</span>
+        <span class="aqi-chip-mod">51–100: Moderate</span>
+        <span class="aqi-chip-poor">101–200: Unhealthy for sensitive groups</span><br>
+        201–300: Very Unhealthy • Above 300: Hazardous
+        </div>
+        </div>
         """,
         unsafe_allow_html=True,
     )
 
-    if df is None:
-        st.warning("No data found.")
+    if df is None or "AQI" not in df.columns or "city" not in df.columns:
+        st.warning("Dataset with 'AQI' and 'city' is required.")
     else:
-        if "city" not in df.columns or "date" not in df.columns or "AQI" not in df.columns:
-            st.error("Dataset needs 'city', 'date', 'AQI' and pollutant columns.")
-        else:
-            cities = sorted(df["city"].unique())
-            city_math = st.selectbox("Select city for mathematical analysis", cities)
-
-            df_city = df[df["city"] == city_math].copy().sort_values("date")
-            df_city = df_city.reset_index(drop=True)
-
-            # ---- Integration: cumulative AQI exposure ----
-            st.markdown("### 1. Integration – Cumulative AQI Exposure")
-
-            st.latex(r"\text{Exposure} \approx \int_{t_0}^{t_n} AQI(t)\, dt")
-
-            # Use trapezoidal rule; assume 1 day step
-            if len(df_city) > 1:
-                exposure = np.trapz(df_city["AQI"].values, dx=1)
+        def classify_aqi(aqi):
+            if aqi <= 50:
+                return "Good"
+            elif aqi <= 100:
+                return "Moderate"
+            elif aqi <= 200:
+                return "Unhealthy (Sensitive)"
+            elif aqi <= 300:
+                return "Very Unhealthy"
             else:
-                exposure = 0.0
+                return "Hazardous"
 
-            st.markdown(
-                f"""
-                Approximate **cumulative AQI exposure** for **{city_math}** over the recorded period:
+        df_cat = df.copy()
+        df_cat["AQI_Category"] = df_cat["AQI"].apply(classify_aqi)
 
-                - Number of days: `{len(df_city)}`  
-                - Integral of AQI(t) dt ≈ **{exposure:.1f} (AQI·day)**  
+        cities = sorted(df_cat["city"].unique())
+        city_sel = st.selectbox("Select city to see AQI category days", cities)
 
-                This represents the **total pollution load** a person is exposed to over time,  
-                similar to the area under the AQI–time graph.
-                """
-            )
+        df_city = df_cat[df_cat["city"] == city_sel]
+        cat_counts = df_city["AQI_Category"].value_counts().reset_index()
+        cat_counts.columns = ["AQI_Category", "Days"]
 
-            fig_exposure = px.area(
-                df_city,
-                x="date",
-                y="AQI",
-                title=f"AQI vs Time – Area under curve ≈ cumulative exposure ({city_math})",
-            )
-            fig_exposure.update_layout(template="plotly_dark", height=430)
-            st.plotly_chart(fig_exposure, use_container_width=True)
+        fig_cat = px.bar(
+            cat_counts,
+            x="AQI_Category",
+            y="Days",
+        )
+        fig_cat.update_layout(template="plotly_dark", height=380)
+        st.plotly_chart(fig_cat, use_container_width=True)
 
-            st.markdown("---")
-
-            # ---- Differentiation: rate of change of AQI ----
-            st.markdown("### 2. Differentiation – Rate of Change of AQI")
-
-            st.latex(r"\frac{d(AQI)}{dt} \approx AQI_{i} - AQI_{i-1}")
-
-            df_city["dAQI_dt"] = df_city["AQI"].diff()
-
-            fig_diff = px.bar(
-                df_city,
-                x="date",
-                y="dAQI_dt",
-                title=f"Approximate daily change in AQI – {city_math}",
-            )
-            fig_diff.update_layout(template="plotly_dark", height=430)
-            st.plotly_chart(fig_diff, use_container_width=True)
-
-            st.markdown(
-                """
-                - Positive bars → AQI **increasing** (air getting worse).  
-                - Negative bars → AQI **decreasing** (air improving).  
-
-                In viva, you can say you used **numerical differentiation** to estimate how fast air quality
-                is changing from day to day.
-                """
-            )
-
-            st.markdown("---")
-
-            # ---- Matrix & Eigenvalues: pollutant covariance ----
-            st.markdown("### 3. Matrices & Eigenvalues – Pollution Patterns")
-
-            st.markdown(
-                """
-                We form a **data matrix** using pollutant concentrations and study its **covariance matrix**.
-
-                If we denote the pollutant vector as:
-
-                \\[
-                \\vec{x} = 
-                \\begin{bmatrix}
-                \\text{PM}_{2.5} \\\\
-                \\text{PM}_{10} \\\\
-                \\text{NO}_2 \\\\
-                \\text{SO}_2 \\\\
-                O_3 \\\\
-                CO
-                \\end{bmatrix}
-                \\]
-
-                then the covariance matrix **C** is:
-
-                \\[
-                C = \\text{cov}(\\vec{x}) 
-                \\]
-
-                We then compute **eigenvalues and eigenvectors** of C.
-                """
-            )
-
-            pol_cols = [c for c in ["PM2_5", "PM10", "NO2", "SO2", "O3", "CO"] if c in df_city.columns]
-
-            if len(pol_cols) >= 2:
-                X = df_city[pol_cols].values
-                # subtract mean
-                X_centered = X - X.mean(axis=0)
-                cov = np.cov(X_centered, rowvar=False)
-
-                eig_vals, eig_vecs = np.linalg.eig(cov)
-
-                cov_df = pd.DataFrame(cov, index=pol_cols, columns=pol_cols)
-                eig_df = pd.DataFrame(
-                    {
-                        "Eigenvalue": eig_vals,
-                        "Explained_variance_%": eig_vals / eig_vals.sum() * 100,
-                    }
-                )
-
-                st.markdown("#### Covariance Matrix of Pollutants")
-                st.dataframe(cov_df.style.format("{:.2f}"), use_container_width=True)
-
-                st.markdown("#### Eigenvalues (Pollution Modes)")
-                st.dataframe(eig_df.style.format({"Eigenvalue": "{:.2f}", "Explained_variance_%": "{:.2f}"}))
-
-                st.markdown(
-                    """
-                    **How to explain this in viva:**
-
-                    - We treat pollutants as components of a **vector** and study how they **vary together**.  
-                    - The covariance matrix tells us which pollutants **co-vary strongly** (e.g., PM₂.₅ & PM₁₀).  
-                    - Eigenvalues show the strength of independent **pollution patterns**.  
-                    - The largest eigenvalue corresponds to a dominant combination of pollutants (e.g. traffic-related mix).
-                    """
-                )
-            else:
-                st.info("Not enough pollutant columns to form a covariance matrix (need at least 2).")
+        st.markdown(
+            f"""
+            <div class="info-bar info-bar-chem">
+            <div class="info-title">How to talk about this in viva:</div>
+            <div class="info-body">
+            For <b>{city_sel}</b>, you can say: “Out of the total days in the dataset, most days fall
+            in the <b>{cat_counts.iloc[0]['AQI_Category']}</b> category.”<br><br>
+            Then you connect it with chemistry:<br>
+            • Frequent <b>Unhealthy</b> days mean prolonged exposure to oxidizing gases (O₃, NO₂), acidic species (H₂SO₄, HNO₃ aerosols) and fine particles.<br>
+            • This leads to irritation of respiratory tract, corrosion of materials, and damage to plants.
+            </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
 # -------------------------------------------------
-# TAB: DATA EXPLORER
+# TAB 5: DATA EXPLORER
 # -------------------------------------------------
 with tab_data:
     st.subheader("Raw Data Explorer")
@@ -612,10 +629,22 @@ with tab_data:
     if df is None:
         st.warning("No data available.")
     else:
-        st.markdown("Use filters to inspect specific cities and date ranges.")
+        st.markdown(
+            """
+            <div class="info-bar">
+            <div class="info-title">How this supports your project:</div>
+            <div class="info-body">
+            You can mention that you used <b>Python (Pandas)</b> to handle and filter the AQI dataset,  
+            which is a realistic way scientists and environmental engineers analyse air quality data.
+            </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
 
-        cities = sorted(df["city"].unique()) if "city" in df.columns else []
-        if cities:
+        # Filters
+        if "city" in df.columns:
+            cities = sorted(df["city"].unique())
             city_filter = st.multiselect("Filter by city", cities, default=cities)
             df_filtered = df[df["city"].isin(city_filter)].copy()
         else:
@@ -637,10 +666,3 @@ with tab_data:
             df_filtered = df_filtered[mask]
 
         st.dataframe(df_filtered, use_container_width=True, height=450)
-
-        st.markdown(
-            """
-            In your report, you can mention that you used **Python (Pandas)** to handle and filter the dataset  
-            before performing chemical and mathematical analysis.
-            """
-        )
