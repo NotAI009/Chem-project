@@ -243,7 +243,7 @@ if df is not None and "date" in df.columns:
     df["date"] = pd.to_datetime(df["date"], errors="coerce")
 
 # -------------------------------------------------
-# HERO SECTION (like maths project vibe)
+# HERO SECTION
 # -------------------------------------------------
 col_hero_text, col_hero_anim = st.columns([1.4, 1])
 
@@ -319,7 +319,6 @@ with tab_overview:
         else:
             cities = sorted(df["city"].unique())
 
-            # Top metrics – overall statistics
             col1, col2, col3 = st.columns(3)
             with col1:
                 st.markdown('<div class="metric-card">', unsafe_allow_html=True)
@@ -341,7 +340,6 @@ with tab_overview:
 
             st.markdown("")
 
-            # City-wise distribution
             col_a, col_b = st.columns([1.4, 1])
 
             with col_a:
@@ -385,9 +383,9 @@ with tab_overview:
                 <div class="info-bar info-bar-chem">
                 <div class="info-title">Chemistry view:</div>
                 <div class="info-body">
-                Every bar in this histogram represents how often certain **pollution levels**
-                occur. High AQI values mean **high concentration of chemically active pollutants**
-                in the air – more **oxidation, acid formation and smog** potential.
+                Every bar in this histogram represents how often certain <b>pollution levels</b> occur.  
+                High AQI values mean <b>high concentration of chemically active pollutants</b> in the air – more 
+                <b>oxidation, acid formation and smog</b> potential.
                 </div>
                 </div>
                 """,
@@ -430,15 +428,14 @@ with tab_chem:
 
     with col_right:
         st.markdown('<div class="metric-card">', unsafe_allow_html=True)
-        st.markmarkdown("**Important atmospheric reactions:**")
+        st.markdown("**Important atmospheric reactions:**")
         st.code(info["chemistry"])
         st.markdown(
             """
             AQI for this pollutant increases when its **ambient concentration** goes up.  
             Because it participates in **oxidation and acid-forming reactions**, even moderate
             levels can have serious environmental effects.
-            """,
-            unsafe_allow_html=False,
+            """
         )
         st.markdown("</div>", unsafe_allow_html=True)
 
@@ -461,8 +458,8 @@ with tab_chem:
             <div class="info-title">How to talk about this:</div>
             <div class="info-body">
             You can compare which city shows higher <b>{info['name']}</b> in the box plot and relate it to
-            local **sources** (traffic, industry, coastal breeze, etc.).<br><br>
-            Then you can connect it to the **chemical reactions** shown above and explain why
+            local <b>sources</b> (traffic, industry, coastal breeze, etc.).<br><br>
+            Then you can connect it to the <b>chemical reactions</b> shown above and explain why
             this pollutant is dangerous even if its concentration seems small.
             </div>
             </div>
@@ -471,7 +468,7 @@ with tab_chem:
         )
 
 # -------------------------------------------------
-# TAB 3: CITY AIR PROFILES (time trend + pollutant mix)
+# TAB 3: CITY AIR PROFILES
 # -------------------------------------------------
 with tab_city:
     st.subheader("City-wise AQI & Pollutant Profile")
@@ -506,7 +503,7 @@ with tab_city:
                     <div class="info-bar info-bar-chem">
                     <div class="info-title">How to explain this graph:</div>
                     <div class="info-body">
-                    • Peaks in AQI correspond to days with **high pollutant load** – for example,
+                    • Peaks in AQI correspond to days with <b>high pollutant load</b> – for example,
                     heavy traffic, industrial activity, or stagnant weather.<br><br>
                     • Chemically, more pollutants mean more reactions: oxidation of SO₂ to H₂SO₄,
                     NO₂ to O₃, and formation of secondary particles.<br><br>
@@ -519,7 +516,6 @@ with tab_city:
                     unsafe_allow_html=True,
                 )
 
-            # Pollutant composition (average for this city)
             pol_cols = [p for p in ["PM2_5", "PM10", "NO2", "SO2", "O3", "CO"] if p in df_city.columns]
 
             if pol_cols:
@@ -642,7 +638,6 @@ with tab_data:
             unsafe_allow_html=True,
         )
 
-        # Filters
         if "city" in df.columns:
             cities = sorted(df["city"].unique())
             city_filter = st.multiselect("Filter by city", cities, default=cities)
